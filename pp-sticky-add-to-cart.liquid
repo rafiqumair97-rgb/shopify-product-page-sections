@@ -1,0 +1,130 @@
+{%- comment -%}
+  Sticky Add to Cart bar for product pages.
+  Shows once the main product form scrolls out of view.
+  Add this section to the product template (Online Store 2.0).
+{%- endcomment -%}
+
+{%- liquid
+  assign current_variant = product.selected_or_first_available_variant
+-%}
+
+<div
+  class="pp-sticky-atc"
+  id="PpStickyAtc-{{ section.id }}"
+  aria-hidden="true"
+  style="--pp-bg: {{ section.settings.background }}; --pp-text: {{ section.settings.text_color }}; --pp-btn: {{ section.settings.button_color }}; --pp-btn-text: {{ section.settings.button_text_color }};"
+>
+  <div class="pp-sticky-atc__inner page-width">
+    {%- if section.settings.show_image and product.featured_image -%}
+      <img
+        class="pp-sticky-atc__image"
+        src="{{ product.featured_image | image_url: width: 120 }}"
+        alt="{{ product.featured_image.alt | default: product.title | escape }}"
+        width="60"
+        height="60"
+        loading="lazy"
+      >
+    {%- endif -%}
+
+    <div class="pp-sticky-atc__info">
+      <p class="pp-sticky-atc__title">{{ product.title }}</p>
+      <p class="pp-sticky-atc__price" data-pp-price>{{ current_variant.price | money }}</p>
+    </div>
+
+    {%- form 'product', product, class: 'pp-sticky-atc__form' -%}
+      {%- if product.has_only_default_variant -%}
+        <input type="hidden" name="id" value="{{ current_variant.id }}">
+      {%- else -%}
+        <select name="id" class="pp-sticky-atc__select" aria-label="{{ 'products.product.product_variants' | t }}" data-pp-variant>
+          {%- for variant in product.variants -%}
+            <option
+              value="{{ variant.id }}"
+              data-price="{{ variant.price | money | escape }}"
+              {% if variant == current_variant %}selected{% endif %}
+              {% unless variant.available %}disabled{% endunless %}
+            >
+              {{ variant.title }}{% unless variant.available %} – {{ 'products.product.sold_out' | t }}{% endunless %}
+            </option>
+          {%- endfor -%}
+        </select>
+      {%- endif -%}
+
+      <button type="submit" name="add" class="pp-sticky-atc__button" {% unless current_variant.available %}disabled{% endunless %}>
+        {%- if current_variant.available -%}
+          {{ section.settings.button_label }}
+        {%- else -%}
+          {{ 'products.product.sold_out' | t }}
+        {%- endif -%}
+      </button>
+    {%- endform -%}
+  </div>
+</div>
+
+<style>
+  .pp-sticky-atc {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    background: var(--pp-bg); color: var(--pp-text);
+    box-shadow: 0 -4px 18px rgba(0,0,0,.08);
+    transform: translateY(110%); transition: transform .3s ease;
+  }
+  .pp-sticky-atc.is-visible { transform: translateY(0); }
+  .pp-sticky-atc__inner { display: flex; align-items: center; gap: 14px; padding: 10px 16px; }
+  .pp-sticky-atc__image { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; }
+  .pp-sticky-atc__info { flex: 1; min-width: 0; }
+  .pp-sticky-atc__title { margin: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pp-sticky-atc__price { margin: 2px 0 0; opacity: .8; }
+  .pp-sticky-atc__form { display: flex; gap: 10px; align-items: center; }
+  .pp-sticky-atc__select { padding: 10px; border-radius: 6px; max-width: 180px; }
+  .pp-sticky-atc__button {
+    background: var(--pp-btn); color: var(--pp-btn-text); border: 0; border-radius: 6px;
+    padding: 12px 22px; font-weight: 600; cursor: pointer;
+  }
+  .pp-sticky-atc__button[disabled] { opacity: .5; cursor: not-allowed; }
+  @media (max-width: 749px) {
+    .pp-sticky-atc__image, .pp-sticky-atc__select { display: none; }
+  }
+</style>
+
+<script>
+  (function () {
+    var bar = document.getElementById('PpStickyAtc-{{ section.id }}');
+    if (!bar) return;
+
+    // Watch the theme's main product form; show the bar when it leaves the screen.
+    var mainForm = document.querySelector('form[action*="/cart/add"]:not(.pp-sticky-atc__form)');
+    if (mainForm && 'IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        var hidden = !entries[0].isIntersecting && entries[0].boundingClientRect.top < 0;
+        bar.classList.toggle('is-visible', hidden);
+        bar.setAttribute('aria-hidden', hidden ? 'false' : 'true');
+      }).observe(mainForm);
+    }
+
+    // Keep the price in sync with the selected variant.
+    var select = bar.querySelector('[data-pp-variant]');
+    var price = bar.querySelector('[data-pp-price]');
+    if (select && price) {
+      select.addEventListener('change', function () {
+        price.innerHTML = select.options[select.selectedIndex].dataset.price;
+      });
+    }
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Sticky add to cart",
+  "tag": "section",
+  "class": "section",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    { "type": "checkbox", "id": "show_image", "label": "Show product image", "default": true },
+    { "type": "text", "id": "button_label", "label": "Button label", "default": "Add to cart" },
+    { "type": "color", "id": "background", "label": "Background", "default": "#ffffff" },
+    { "type": "color", "id": "text_color", "label": "Text", "default": "#1a1a1a" },
+    { "type": "color", "id": "button_color", "label": "Button", "default": "#1a1a1a" },
+    { "type": "color", "id": "button_text_color", "label": "Button text", "default": "#ffffff" }
+  ],
+  "presets": [{ "name": "Sticky add to cart" }]
+}
+{% endschema %}
